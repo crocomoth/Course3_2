@@ -18,6 +18,36 @@ namespace Course3_2.Models
         }
     }
 
+    public class EmailModel
+    {
+        public string Email { get; set; }
+
+        public string Password { get; set; }
+
+        public ApplicationUser User { get; set; }
+
+        public long Id { get; set; }
+    }
+
+    /*public class EmailAddressModel
+    {
+        public string SmtpAddress { get; set; }
+
+        public string PopAddress { get; set; }
+
+        public string ImapAddress { get; set; }
+
+        public string Email { get; set; }
+
+        public string Password { get; set; }
+
+        public int SmtpPort { get; set; }
+
+        public int PopPort { get; set; }
+
+        public int ImapPort { get; set; }
+    }*/
+
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext()
@@ -29,5 +59,7 @@ namespace Course3_2.Models
         {
             return new ApplicationDbContext();
         }
+
+        public System.Data.Entity.DbSet<Course3_2.Models.EmailModel> EmailModels { get; set; }
     }
 }
