@@ -54,5 +54,11 @@ namespace Course3_2.Service
             List<EmailMessage> list = JsonConvert.DeserializeObject<List<EmailMessage>>(data);
             return list;
         }
+
+        public string ConvertIndexContainer(IndexContainer indexContainer)
+        {
+            string data = JsonConvert.SerializeObject(indexContainer);
+            return data;
+        }
     }
 }

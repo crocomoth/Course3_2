@@ -67,6 +67,10 @@ namespace Course3_2.Service
 
             var timerChannel = _connection.CreateModel();
             timerChannel.QueueDeclare("mass_timer", false, false, false, null);
+
+            var pop3IndexedChannel = _connection.CreateModel();
+            pop3IndexedChannel.QueueDeclare("recv_pop3_indexed", false, false, false, null);
+            _connectionsDictionary.Add("pop3indexed",pop3IndexedChannel);
         }
 
 
@@ -151,6 +155,26 @@ namespace Course3_2.Service
             }
 
             var list = new List<EmailMessage>(_userMessages);           
+
+            return list;
+        }
+
+        public List<EmailMessage> GetMessagesPop3Indexed(EmailAddressModel info, int index)
+        {
+            string data = _jsonConverter.ConvertIndexContainer(new IndexContainer(info, index));
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("pop3indexed"));
+            var channel = pair.First().Value;
+
+            channel.BasicPublish(string.Empty, "recv_pop3_indexed", null, bytes);
+            _userMessages = null;
+            while (_userMessages == null)
+            {
+                Thread.Sleep(10);
+            }
+
+            var list = new List<EmailMessage>(_userMessages);
 
             return list;
         }
