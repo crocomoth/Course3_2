@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Linq;
 using System.Web;
 using System.Web.Mvc;
 using Course3_2.Models;
@@ -9,7 +6,6 @@ using Course3_2.Service;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.Owin;
 using MicroServiceCore.Model;
-using MimeKit;
 
 namespace Course3_2.Controllers
 {
@@ -17,7 +13,6 @@ namespace Course3_2.Controllers
     {
         private UserManager<ApplicationUser> _userManager;
         private ApplicationDbContext applicationDbContext = new ApplicationDbContext();
-
         private UserManager<ApplicationUser> Manager
         {
             get
@@ -79,8 +74,7 @@ namespace Course3_2.Controllers
         {
             if (ModelState.IsValid)
             {
-                model.User = Manager.FindById(User.Identity.GetUserId());
-                
+                //model.User = Manager.FindById(User.Identity.GetUserId());
                 applicationDbContext.EmailModels.Add(model);
                 applicationDbContext.SaveChanges();
 
@@ -97,7 +91,7 @@ namespace Course3_2.Controllers
                 ApplicationUser user = Manager.FindById(User.Identity.GetUserId());
 
                 var emails = applicationDbContext.EmailModels.Where(x => x.User.Id == user.Id);
-                var messages = new List<MimeMessage>();
+                var messages = new System.Collections.Generic.List<EmailMessage>();
                 foreach (var mail in emails)
                 {
                     var addressModel = new EmailAddressModel
@@ -107,22 +101,11 @@ namespace Course3_2.Controllers
                         PopPort = 995
                     };
 
-                    messages.AddRange(apiGateway.GetMessagesPop3(addressModel));
+                    var mList = apiGateway.GetMessagesPop3(addressModel);
+                    messages.AddRange(mList);
                 }
-
-                var viewList = new List<EmailMessage>();
-                foreach (var mail in messages)
-                {
-                    var emailMessage = new EmailMessage
-                    {
-                        FromAddress = mail.Sender.Address,
-                        Subject = mail.Subject,
-                        Message = mail.HtmlBody
-                    };
-
-                    viewList.Add(emailMessage);
-                }
-                return View("AllMail",viewList);
+                
+                return View("AllMail",messages);
             }
 
             return View("Index");

@@ -42,5 +42,17 @@ namespace Course3_2.Service
             var data = JsonConvert.SerializeObject(container);
             return data;
         }
+
+        public Container DeserealizeContainer(string data)
+        {
+            Container container = JsonConvert.DeserializeObject<Container>(data);
+            return container;
+        }
+
+        public List<EmailMessage> DeseralizeEmailList(string data)
+        {
+            List<EmailMessage> list = JsonConvert.DeserializeObject<List<EmailMessage>>(data);
+            return list;
+        }
     }
 }

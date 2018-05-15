@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using MicroServiceCore.Model;
-using MimeKit;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -11,23 +11,25 @@ namespace Course3_2.Service
 {
     public class ApiGatewayService
     {
-        private JsonConverter jsonConverter;
-        private ConnectionFactory factory;
-        private IConnection connection;
-        private Dictionary<string, IModel> connectionsDictionary;
+        private JsonConverter _jsonConverter;
+        private ConnectionFactory _factory;
+        private IConnection _connection;
+        private Dictionary<string, IModel> _connectionsDictionary;
+        private List<EmailMessage> _userMessages;
 
         public void Initialize()
         {
-            connectionsDictionary = new Dictionary<string, IModel>();
+            _connectionsDictionary = new Dictionary<string, IModel>();
+            _jsonConverter = new JsonConverter();
 
-            factory = new ConnectionFactory()
+            _factory = new ConnectionFactory()
             {
                 UserName = "guest",
                 HostName = "localhost",
                 Password = "guest"
             };
-            connection = factory.CreateConnection();
-            var channel = connection.CreateModel();
+            _connection = _factory.CreateConnection();
+            var channel = _connection.CreateModel();
 
             channel.QueueDeclare(queue: "sender",
                 durable: false,
@@ -35,21 +37,35 @@ namespace Course3_2.Service
                 autoDelete: false,
                 arguments: null);
 
-            connectionsDictionary.Add("smtp sender", channel);
+            _connectionsDictionary.Add("smtp sender", channel);
 
-            var imapChannel = connection.CreateModel();
+            var imapChannel = _connection.CreateModel();
             imapChannel.QueueDeclare("recv_imap", false, false, false, null);
-            connectionsDictionary.Add("imap recv", imapChannel);
+            _connectionsDictionary.Add("imap recv", imapChannel);
 
-            var popChannel = connection.CreateModel();
+            var imapConsumer = new EventingBasicConsumer(imapChannel);
+            imapConsumer.Received += MessageGot;
+
+            channel.BasicConsume(queue: "recv_pop3",
+                autoAck: true,
+                consumer: imapConsumer);
+
+            var popChannel = _connection.CreateModel();
             popChannel.QueueDeclare("recv_pop3", false, false, false, null);
-            connectionsDictionary.Add("pop recv", popChannel);
+            _connectionsDictionary.Add("pop recv", popChannel);
 
-            var massSmtpChannel = connection.CreateModel();
+            var consumer = new EventingBasicConsumer(popChannel);
+            consumer.Received += MessageGot;
+
+            channel.BasicConsume(queue: "recv_pop3",
+                autoAck: true,
+                consumer: consumer);
+
+            var massSmtpChannel = _connection.CreateModel();
             massSmtpChannel.QueueDeclare("spammer", false, false, false, null);
-            connectionsDictionary.Add("spammer",massSmtpChannel);
+            _connectionsDictionary.Add("spammer",massSmtpChannel);
 
-            var timerChannel = connection.CreateModel();
+            var timerChannel = _connection.CreateModel();
             timerChannel.QueueDeclare("mass_timer", false, false, false, null);
         }
 
@@ -57,10 +73,10 @@ namespace Course3_2.Service
         public void SendMessage(EmailAddressModel model, EmailMessage wrapMessage)
         {
             var container = new Container(model, wrapMessage);
-            string data = jsonConverter.ConvertContainer(container);
+            string data = _jsonConverter.ConvertContainer(container);
             byte[] bytes = Encoding.UTF8.GetBytes(data);
 
-            var pair = connectionsDictionary.Where(x => x.Key.Equals("smtp sender"));
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("smtp sender"));
             var channel = pair.First().Value;
 
             channel.BasicPublish(exchange: "",
@@ -72,10 +88,10 @@ namespace Course3_2.Service
         public void SendMessages(EmailAddressModel model, List<EmailMessage> messages)
         {
             var mailListContainer = new MailListContainer(model, messages);
-            var serialized = jsonConverter.SerializeMailListContainer(mailListContainer);
+            var serialized = _jsonConverter.SerializeMailListContainer(mailListContainer);
             var bytes = Encoding.UTF8.GetBytes(serialized);
 
-            var pair = connectionsDictionary.Where(x => x.Key.Equals("spammer"));
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("spammer"));
             var channel = pair.First().Value;
 
             channel.BasicPublish("","spammer",null,bytes);
@@ -83,60 +99,70 @@ namespace Course3_2.Service
 
         public void SendMessagesAtTime(EmailAddressModel model, List<EmailMessage> messages, DateTime time)
         {
-            var container = new TimerListContainer();
-            container.info = model;
-            container.list = messages;
-            container.time = time;
-            var serialized = jsonConverter.SerizlizeTimerListContainer(container);
+            var container = new TimerListContainer
+            {
+                info = model,
+                list = messages,
+                time = time
+            };
+            var serialized = _jsonConverter.SerizlizeTimerListContainer(container);
             var bytes = Encoding.UTF8.GetBytes(serialized);
 
-            var pair = connectionsDictionary.Where(x => x.Key.Equals("mass_timer"));
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("mass_timer"));
             var channel = pair.First().Value;
 
             channel.BasicPublish("","mass_timer",null,bytes);
         }
 
-        public List<MimeMessage> GetMessages(EmailAddressModel info)
+        public List<EmailMessage> GetMessages(EmailAddressModel info)
         {
-            string data = jsonConverter.ConvertAccontInfo(info);
+            string data = _jsonConverter.ConvertAccontInfo(info);
             byte[] bytes = Encoding.UTF8.GetBytes(data);
 
-            var pair = connectionsDictionary.Where(x => x.Key.Equals("imap recv"));
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("imap recv"));
             var channel = pair.First().Value;
 
             channel.BasicPublish(string.Empty, "recv_imap",null,bytes);
 
-            var consumer = new EventingBasicConsumer(channel);
-            BasicGetResult result = channel.BasicGet("recv_imap", true);
-            var list = new List<MimeMessage>();
-            if (result != null)
+            _userMessages = null;
+            while (_userMessages == null)
             {
-                data = Encoding.UTF8.GetString(result.Body);
-                list = jsonConverter.DeserealizeList(data);
+                Thread.Sleep(10);
             }
+
+            var list = new List<EmailMessage>(_userMessages);
 
             return list;
         }
 
-        public List<MimeMessage> GetMessagesPop3(EmailAddressModel info)
+        public List<EmailMessage> GetMessagesPop3(EmailAddressModel info)
         {
-            string data = jsonConverter.ConvertAccontInfo(info);
+            string data = _jsonConverter.ConvertAccontInfo(info);
             byte[] bytes = Encoding.UTF8.GetBytes(data);
 
-            var pair = connectionsDictionary.Where(x => x.Key.Equals("pop recv"));
+            var pair = _connectionsDictionary.Where(x => x.Key.Equals("pop recv"));
             var channel = pair.First().Value;
 
             channel.BasicPublish(string.Empty, "recv_pop3",null,bytes);
-            var consumer = new EventingBasicConsumer(channel);
-            BasicGetResult result = channel.BasicGet("recv_pop3", true);
-            var list = new List<MimeMessage>();
-            if (result != null)
+            _userMessages = null;
+            while (_userMessages == null)
             {
-                data = Encoding.UTF8.GetString(result.Body);
-                list = jsonConverter.DeserealizeList(data);
+                Thread.Sleep(10);
             }
+
+            var list = new List<EmailMessage>(_userMessages);           
 
             return list;
         }
+
+        public void MessageGot(object model, BasicDeliverEventArgs eventArgs)
+        {
+            var body = eventArgs.Body;
+            string data = Encoding.UTF8.GetString(body);
+            var container = _jsonConverter.DeseralizeEmailList(data);
+            _userMessages = container;
+        }
+
+        
     }
 }
