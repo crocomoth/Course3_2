@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
 using Course3_2.Models;
@@ -83,7 +84,7 @@ namespace Course3_2.Controllers
             return View("Index");
         }
 
-        public ActionResult GetMailForAllAccounts()
+        public async Task<ActionResult> GetMailForAllAccounts()
         {
             if (User.Identity.IsAuthenticated)
             {
@@ -100,8 +101,8 @@ namespace Course3_2.Controllers
                         Password = mail.Password,
                         PopPort = 995
                     };
-
-                    var mList = apiGateway.GetMessagesPop3(addressModel);
+                    // TODO: change await
+                    var mList = await apiGateway.GetMessagesPop3(addressModel);
                     messages.AddRange(mList);
                 }
                 

@@ -29,25 +29,7 @@ namespace Course3_2.Models
         public long Id { get; set; }
     }
 
-    /*public class EmailAddressModel
-    {
-        public string SmtpAddress { get; set; }
-
-        public string PopAddress { get; set; }
-
-        public string ImapAddress { get; set; }
-
-        public string Email { get; set; }
-
-        public string Password { get; set; }
-
-        public int SmtpPort { get; set; }
-
-        public int PopPort { get; set; }
-
-        public int ImapPort { get; set; }
-    }*/
-
+   // [DbConfigurationType(typeof(MySql.Data.Entity.MySqlEFConfiguration))]
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext()

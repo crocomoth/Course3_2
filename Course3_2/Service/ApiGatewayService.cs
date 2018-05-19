@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using MicroServiceCore.Model;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -46,7 +47,7 @@ namespace Course3_2.Service
             var imapConsumer = new EventingBasicConsumer(imapChannel);
             imapConsumer.Received += MessageGot;
 
-            channel.BasicConsume(queue: "recv_pop3",
+            channel.BasicConsume(queue: "recv_imap",
                 autoAck: true,
                 consumer: imapConsumer);
 
@@ -139,7 +140,8 @@ namespace Course3_2.Service
             return list;
         }
 
-        public List<EmailMessage> GetMessagesPop3(EmailAddressModel info)
+        // TODO: Thread.Sleep(10);
+        public async Task<List<EmailMessage>> GetMessagesPop3(EmailAddressModel info)
         {
             string data = _jsonConverter.ConvertAccontInfo(info);
             byte[] bytes = Encoding.UTF8.GetBytes(data);
@@ -151,7 +153,7 @@ namespace Course3_2.Service
             _userMessages = null;
             while (_userMessages == null)
             {
-                Thread.Sleep(10);
+                await Task.Delay(10);
             }
 
             var list = new List<EmailMessage>(_userMessages);           
